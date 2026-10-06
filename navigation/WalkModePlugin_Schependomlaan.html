@@ -1,0 +1,230 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>xeokit Example</title>
+    <link href="../css/pageStyle.css" rel="stylesheet"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.13.0/js/all.min.js"></script>
+    <style>
+        #walk { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 8px 16px; font-size: 14px; cursor: pointer; }
+        #crosshair { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px; border-radius: 50%;
+                     background: #fff; box-shadow: 0 0 0 2px rgba(0, 0, 0, .5); pointer-events: none; }
+        #crosshair.on { background: #2b7de9; }
+        #prompt { position: absolute; left: 50%; top: calc(50% + 16px); transform: translateX(-50%); padding: 4px 10px;
+                  border-radius: 4px; background: rgba(0, 0, 0, .7); color: #fff; pointer-events: none; }
+        #prompt:empty { display: none; }
+        #legend { position: absolute; right: 12px; bottom: 12px; padding: 10px 14px; border-radius: 8px; line-height: 2;
+                  font-size: 13px; background: rgba(255, 255, 255, .85); }
+        kbd { display: inline-block; min-width: 14px; margin-right: 3px; padding: 0 5px; border-radius: 4px;
+              background: #e4e4e4; text-align: center; font-family: monospace; }
+        kbd.on { background: #2b7de9; color: #fff; }
+        [hidden] { display: none !important; }
+    </style>
+    <!-- Plugins import the SDK by package name. The import map points that name at the SDK this page uses, so the
+         plugin and the page share one SDK instance. With a bundler, drop the map and import the packages by name. -->
+    <script type="importmap">
+        {
+            "imports": {
+                "@xeokit/xeokit-sdk": "../dist/xeokit-sdk.js",
+                "@xeokit/sdk-plugins-walk-mode": "https://cdn.jsdelivr.net/npm/@xeokit/sdk-plugins/node_modules/@xeokit/sdk-plugins-walk-mode/dist/index.js"
+            }
+        }
+    </script>
+</head>
+<body>
+<input type="checkbox" id="info-button"/>
+<label for="info-button" class="info-button"><i class="far fa-3x fa-question-circle"></i></label>
+<canvas id="myCanvas"></canvas>
+<button id="walk" disabled>Walk</button>
+<div id="hud" hidden>
+    <div id="crosshair"></div>
+    <div id="prompt"></div>
+    <div id="legend"></div>
+</div>
+<div class="slideout-sidebar">
+    <img class="info-icon" style="width:280px; padding-bottom:10px;" src="../assets/images/camera_icon.png"/>
+    <h1>WalkModePlugin</h1>
+    <h2>First-person walking through a BIM model</h2>
+    <p>Loads an .xkt IFC model, then lets you walk through it with gravity, collisions and steps, go through
+        doors and fly. WalkModePlugin comes from the <code>@xeokit/sdk-plugins</code> package, not from
+        xeokit-sdk.</p>
+    <p>Press <b>Walk</b> to start on the ground floor. Use the mouse to look around and the keys listed in
+        the legend to move. Press <b>Esc</b> to go back to orbiting.</p>
+    <p>The plugin needs a Z-up World, so the page sets <code>camera.worldAxis</code> and loads the Y-up model rotated
+        by 90 degrees about the X axis.</p>
+    <h3>Stats</h3>
+    <ul>
+        <li>
+            <div id="time">Loading JavaScript modules...</div>
+        </li>
+    </ul>
+    <h3>Components Used</h3>
+    <ul>
+        <li>
+            <a href="../docs/class/src/viewer/Viewer.js~Viewer.html"
+               target="_other">Viewer</a>
+        </li>
+        <li>
+            <a href="../docs/class/src/plugins/XKTLoaderPlugin/XKTLoaderPlugin.js~XKTLoaderPlugin.html"
+               target="_other">XKTLoaderPlugin</a>
+        </li>
+        <li>
+            <a href="https://github.com/xeokit/xeokit-sdk-plugins/tree/main/packages/walk-mode"
+               target="_other">WalkModePlugin</a>
+        </li>
+    </ul>
+    <h3>Assets</h3>
+    <ul>
+        <li>
+            <a href="https://github.com/openBIMstandards/DataSetSchependomlaan"
+               target="_other">Model source</a>
+        </li>
+    </ul>
+</div>
+</body>
+<script type="module">
+
+    //------------------------------------------------------------------------------------------------------------------
+    // Import the modules we need for this example
+    //------------------------------------------------------------------------------------------------------------------
+
+    import {Viewer, XKTLoaderPlugin} from "@xeokit/xeokit-sdk";
+    import {WalkModePlugin} from "@xeokit/sdk-plugins-walk-mode";
+
+    //------------------------------------------------------------------------------------------------------------------
+    // 1. Create a Viewer,
+    // 2. Make the World Z-up, as WalkModePlugin requires,
+    // 3. Arrange the camera
+    //------------------------------------------------------------------------------------------------------------------
+
+    // 1
+    const viewer = new Viewer({
+        canvasId: "myCanvas",
+        transparent: true
+    });
+
+    // 2
+    viewer.camera.worldAxis = [1, 0, 0, 0, 0, 1, 0, -1, 0];
+
+    // 3
+    viewer.camera.eye = [11, -24, 14];
+    viewer.camera.look = [11, 11, 5];
+    viewer.camera.up = [0, 0, 1];
+
+    //------------------------------------------------------------------------------------------------------------------
+    // 1. Create an XKT loader plugin,
+    // 2. Load a XKT model, rotated to Z-up
+    //------------------------------------------------------------------------------------------------------------------
+
+    // 1
+    const xktLoader = new XKTLoaderPlugin(viewer);
+
+    // 2
+    const sceneModel = xktLoader.load({
+        id: "myModel",
+        src: "../assets/models/xkt/v8/ifc/Schependomlaan.ifc.xkt",
+        rotation: [90, 0, 0],                   // The model is Y-up
+        edges: true,
+        objectDefaults: {                       // This model has opaque windows / spaces; make them transparent
+            "IfcPlate": {
+                opacity: 0.3
+            },
+            "IfcWindow": {
+                opacity: 0.4
+            },
+            "IfcSpace": {
+                opacity: 0.4
+            }
+        }
+    });
+
+    const t0 = performance.now();
+
+    document.getElementById("time").innerHTML = "Loading model...";
+
+    sceneModel.on("loaded", function () {
+        const t1 = performance.now();
+        document.getElementById("time").innerHTML = "Model loaded in " + Math.floor(t1 - t0) / 1000.0 + " seconds<br>Objects: " + sceneModel.numEntities;
+        document.getElementById("walk").disabled = false;
+    });
+
+    //------------------------------------------------------------------------------------------------------------------
+    // 1. Create a WalkModePlugin,
+    // 2. Build the HUD from its events: crosshair, door prompt and key legend (the plugin draws no UI),
+    // 3. Start walking from a user gesture, which the browser requires for pointer lock
+    //------------------------------------------------------------------------------------------------------------------
+
+    const $ = (id) => document.getElementById(id);
+
+    // 1 Every setting is optional; see the plugin README for all of them
+    const walkMode = new WalkModePlugin(viewer, {
+        keys: {                                 // Arrow keys in addition to WASD; other actions keep their default keys
+            forward: ["KeyW", "ArrowUp"],
+            backward: ["KeyS", "ArrowDown"],
+            left: ["KeyA", "ArrowLeft"],
+            right: ["KeyD", "ArrowRight"]
+        },
+        walkSpeed: 2,
+        runSpeed: 5
+    });
+
+    // 2
+    const LEGEND = [
+        [["forward", "left", "backward", "right"], "Move"],
+        [["run"], "Run"],
+        [["up"], "Jetpack / fly up"],
+        [["down"], "Fly down"],
+        [["door"], "Go through door"],
+        [["fly"], "Free flight"],
+        [["exit"], "Exit"]
+    ];
+
+    const KEY_LABELS = {ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", Escape: "Esc"};
+    const keyLabel = (code) =>
+        KEY_LABELS[code] ?? code.replace(/^(Key|Digit)/, "").replace(/(Left|Right)$/, "").replace("Control", "Ctrl");
+
+    let flying = false;
+    let pressedActions = [];
+
+    const renderLegend = () => {
+        const on = new Set([...pressedActions, ...(flying ? ["fly"] : [])]);
+        $("legend").innerHTML = LEGEND.map(([actions, label]) => {
+            const keys = actions.map((action) => [...new Set(walkMode.keys[action].map(keyLabel))]
+                .map((key) => `<kbd class="${on.has(action) ? "on" : ""}">${key}</kbd>`).join("")).join("");
+            return `<div>${keys} ${label}</div>`;
+        }).join("");
+    };
+
+    walkMode.on("flying", (on) => {
+        flying = on;
+        renderLegend();
+    });
+
+    walkMode.on("pressedActions", (actions) => {
+        pressedActions = actions;
+        renderLegend();
+    });
+
+    walkMode.on("target", (target) => {         // "door" while the crosshair aims at a door within reach, else null
+        $("crosshair").classList.toggle("on", !!target);
+        $("prompt").textContent = target === "door" ? `Press ${keyLabel(walkMode.keys.door[0])} to go through` : "";
+    });
+
+    walkMode.on("active", (active) => {         // Also fires when walk mode ends with Esc
+        $("hud").hidden = !active;
+        $("walk").hidden = active;
+    });
+
+    renderLegend();
+
+    // 3 Walking starts at the camera's "look" and faces away from "eye": here in the hall, in front of a door
+    $("walk").onclick = () => {
+        viewer.camera.eye = [9.6, 2.5, 2];
+        viewer.camera.look = [9.6, 5.5, 0.5];
+        walkMode.activate();
+    };
+
+</script>
+</html>
